@@ -2,7 +2,6 @@
 
 A responsive web app to **track and analyze cycling power and speed in real-time**, using GPS (or simulation), elevation, and live wind data. The app supports automatic estimation of rider drag based on terrain, and generates full-session analytics and downloadable CSV files for further analysis.
 
-![Screenshot: Cyclist Power & Speed Tracker UI](screenshot.png)
 
 ## Features
 
