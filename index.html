@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cyclist Power & Speed Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; }
+    #display { margin-top: 20px; }
+    label { display: inline-block; width: 120px; }
+    input[type="number"] { width: 80px; }
+    .row { margin: 10px 0; }
+    #csv-download { margin-top: 20px; }
+    table { border-collapse: collapse; margin-top: 10px; }
+    td, th { border: 1px solid #ddd; padding: 4px 8px; }
+  </style>
+</head>
+<body>
+  <h1>Cyclist Power & Speed Tracker</h1>
+  <form id="settings">
+    <div class="row">
+      <label>Mode:</label>
+      <select id="mode">
+        <option value="simulate">Simulate</option>
+        <option value="gps">Use GPS</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Rider mass (kg):</label>
+      <input type="number" id="rider_mass" value="70" min="30" max="120" step="1">
+      <label>Bike mass (kg):</label>
+      <input type="number" id="bike_mass" value="8" min="5" max="20" step="0.1">
+    </div>
+    <div class="row">
+      <label>CdA (m²):</label>
+      <input type="number" id="cda" value="0.3" min="0.2" max="0.4" step="0.01">
+      <label>CRR:</label>
+      <input type="number" id="crr" value="0.004" min="0.002" max="0.01" step="0.0001">
+    </div>
+    <button type="button" id="start-btn">Start</button>
+    <button type="button" id="stop-btn" disabled>Stop</button>
+  </form>
+  <div id="display">
+    <h2>Status</h2>
+    <div id="live-stats"></div>
+    <div id="summary"></div>
+    <div id="csv-download"></div>
+  </div>
+  <script>
+    // Constants
+    const g = 9.80665; // gravity (m/s^2)
+    const rho = 1.225; // air density (kg/m^3)
+    const efficiency = 0.23; // mechanical efficiency for calories burned
+
+    // Data stores
+    let dataPoints = [];
+    let intervalHandles = [];
+    let running = false;
+    let lastTimestamp = null;
+
+    // Utility: Generate CSV
+    function toCSV(rows) {
+      const header = ['timestamp','latitude','longitude','altitude','power','speed'];
+      const csv = [header.join(',')];
+      for (const r of rows) {
+        csv.push([r.timestamp, r.lat, r.lon, r.alt, r.power, r.speed].join(','));
+      }
+      return csv.join('\n');
+    }
+
+    // Utility: Haversine distance (meters)
+    function haversine(lat1, lon1, lat2, lon2) {
+      const toRad = x => x * Math.PI / 180;
+      const R = 6371000; // m
+      const dLat = toRad(lat2-lat1);
+      const dLon = toRad(lon2-lon1);
+      const a = Math.sin(dLat/2) ** 2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon/2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+
+    // Utility: Calculate heading in degrees
+    function bearing(lat1, lon1, lat2, lon2) {
+      const toRad = x => x * Math.PI / 180;
+      const toDeg = x => x * 180 / Math.PI;
+      const dLon = toRad(lon2-lon1);
+      const y = Math.sin(dLon) * Math.cos(toRad(lat2));
+      const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
+      return (toDeg(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    // Get wind at given location (Open-Meteo)
+    async function getWind(lat, lon) {
+      const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`;
+      try {
+        const res = await fetch(url);
+        const js = await res.json();
+        if (js.current_weather) {
+          return {
+            speed: js.current_weather.windspeed,
+            direction: js.current_weather.winddirection // degrees from north
+          };
+        }
+      } catch (e) {}
+      // fallback: zero wind
+      return {speed: 0, direction: 0};
+    }
+
+    // Get elevation (Open-Meteo)
+    async function getElevation(lat, lon) {
+      const url = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
+      try {
+        const res = await fetch(url);
+        const js = await res.json();
+        if (js.elevation) return js.elevation;
+      } catch (e) {}
+      // fallback: zero
+      return 0;
+    }
+
+    // Simulate GPS path (roughly a straight line with some small variations)
+    function simulatePosition(baseLat, baseLon, metersEast, metersNorth) {
+      const dLat = metersNorth / 111320; // approx meters per degree latitude
+      const dLon = metersEast / (40075000 * Math.cos(baseLat * Math.PI / 180) / 360);
+      return [baseLat + dLat, baseLon + dLon];
+    }
+
+    // Power calculation (returns {power, speed}) given two points and wind
+    function calcPower(p1, p2, wind, user) {
+      // Distance (m)
+      const dist = haversine(p1.lat, p1.lon, p2.lat, p2.lon);
+      const dt = (p2.timestamp - p1.timestamp)/1000;
+      if (dt <= 0) return {power: 0, speed: 0};
+
+      const speed = dist / dt; // m/s
+
+      // Elevation difference
+      const dAlt = p2.alt - p1.alt;
+      const gradient = dAlt / dist || 0;
+      const theta = Math.atan(gradient);
+
+      // Relative wind: wind direction minus bearing, projected
+      const course = bearing(p1.lat, p1.lon, p2.lat, p2.lon);
+      const wind_rel = wind.speed * Math.cos((wind.direction - course) * Math.PI / 180);
+      const apparent_speed = speed + wind_rel; // assumes headwind positive
+
+      // Forces
+      const mass = user.rider_mass + user.bike_mass;
+      const F_gravity = mass * g * Math.sin(theta);
+      const F_roll = mass * g * user.crr * Math.cos(theta);
+      const F_aero = 0.5 * rho * user.cda * apparent_speed ** 2;
+
+      const totalF = F_gravity + F_roll + F_aero;
+      const power = totalF * speed;
+
+      return {power: Math.max(0, power), speed: speed};
+    }
+
+    // Main data collection loop
+    function startSession(user) {
+      running = true;
+      dataPoints = [];
+      lastTimestamp = Date.now();
+      document.getElementById('summary').textContent = "";
+      document.getElementById('csv-download').textContent = "";
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('stop-btn').disabled = false;
+
+      // Simulate or use GPS
+      let positions = [];
+      let baseLat = 51.05011, baseLon = -114.08529; // e.g. Calgary, for simulation
+      let metersEast = 0, metersNorth = 0;
+      let wind = {speed: 0, direction: 0};
+
+      // For GPS
+      let watchId = null;
+      function stopWatch() {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      }
+
+      // Sampling: every 1s, get position+elevation
+      intervalHandles.push(setInterval(async () => {
+        const now = Date.now();
+        if (!running) return;
+
+        let lat, lon, alt;
+
+        if (user.mode === "simulate") {
+          metersEast += 4 + (Math.random() - 0.5)*0.8; // ~14.4km/h
+          metersNorth += (Math.random() - 0.5)*0.3;
+          [lat, lon] = simulatePosition(baseLat, baseLon, metersEast, metersNorth);
+          alt = 1050 + Math.sin(metersEast/200) * 8 + Math.random(); // simple wavy profile
+        } else if (positions.length > 0) {
+          const pos = positions[positions.length-1];
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+          // Get elevation
+          alt = await getElevation(lat, lon);
+        } else {
+          return; // skip sample if not yet available
+        }
+
+        dataPoints.push({
+          timestamp: now,
+          lat: lat,
+          lon: lon,
+          alt: alt,
+          power: null,
+          speed: null
+        });
+      }, 1000));
+
+      // Every 20s: get wind data for current position
+      intervalHandles.push(setInterval(async () => {
+        if (!running || dataPoints.length === 0) return;
+        const dp = dataPoints[dataPoints.length-1];
+        wind = await getWind(dp.lat, dp.lon);
+      }, 20000));
+
+      // Every 5s: calculate power & speed
+      intervalHandles.push(setInterval(() => {
+        if (!running || dataPoints.length < 6) return;
+        // Take most recent and 5s earlier
+        const p2 = dataPoints[dataPoints.length-1];
+        const idx1 = dataPoints.length - 6;
+        const p1 = dataPoints[idx1];
+        // Use last sampled wind
+        const res = calcPower(p1, p2, wind, user);
+        dataPoints[dataPoints.length-1].power = res.power;
+        dataPoints[dataPoints.length-1].speed = res.speed;
+      }, 5000));
+
+      // Every 20s: update display
+      intervalHandles.push(setInterval(() => {
+        if (!running || dataPoints.length < 5) return;
+        const now = Date.now();
+        // last 20s
+        const recent = dataPoints.filter(r => r.timestamp > now - 20000 && r.power !== null && r.speed !== null);
+        if (recent.length === 0) return;
+        const avgPower = recent.reduce((s, r) => s + r.power, 0) / recent.length;
+        const avgSpeed = recent.reduce((s, r) => s + r.speed, 0) / recent.length;
+        document.getElementById('live-stats').innerHTML = `
+          <strong>Last 20s averages:</strong><br>
+          Power: ${avgPower.toFixed(1)} W<br>
+          Speed: ${(avgSpeed*3.6).toFixed(1)} km/h<br>
+          Wind: ${wind.speed.toFixed(1)} m/s at ${wind.direction.toFixed(0)}°
+        `;
+      }, 20000));
+
+      // For GPS mode: collect positions
+      if (user.mode === "gps" && navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(
+          pos => positions.push(pos),
+          err => alert('GPS error: ' + err.message),
+          {enableHighAccuracy: true, maximumAge: 1000, timeout: 10000}
+        );
+      }
+
+      // Attach stop handler
+      document.getElementById('stop-btn').onclick = () => {
+        running = false;
+        stopWatch();
+        for (const h of intervalHandles) clearInterval(h);
+        intervalHandles = [];
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+        showSummary(user);
+      };
+    }
+
+    // At session end: display summary and provide CSV download
+    function showSummary(user) {
+      // Clean up: only rows with calculated power/speed
+      const clean = dataPoints.filter(r => r.power !== null && r.speed !== null);
+      if (clean.length === 0) return;
+      // Averages
+      const avgPower = clean.reduce((s, r) => s + r.power, 0) / clean.length;
+      const avgSpeed = clean.reduce((s, r) => s + r.speed, 0) / clean.length;
+      // Calories
+      const totalJoules = clean.reduce((s, r, i, arr) => {
+        if (i === 0) return s;
+        const dt = (r.timestamp - arr[i-1].timestamp)/1000;
+        return s + r.power * dt;
+      }, 0);
+      const calories = totalJoules / efficiency / 4184;
+      // Elevation gain
+      let totalElev = 0;
+      for (let i=1; i<clean.length; ++i) {
+        const d = clean[i].alt - clean[i-1].alt;
+        if (d > 0.3) totalElev += d;
+      }
+      document.getElementById('summary').innerHTML = `
+        <h3>Session Summary</h3>
+        <table>
+          <tr><th>Average Power</th><td>${avgPower.toFixed(1)} W</td></tr>
+          <tr><th>Average Speed</th><td>${(avgSpeed*3.6).toFixed(1)} km/h</td></tr>
+          <tr><th>Total Calories</th><td>${calories.toFixed(1)} kcal</td></tr>
+          <tr><th>Total Elevation Gain</th><td>${totalElev.toFixed(1)} m</td></tr>
+        </table>
+      `;
+
+      // CSV
+      const csv = toCSV(clean);
+      const blob = new Blob([csv], {type: 'text/csv'});
+      const url = URL.createObjectURL(blob);
+      document.getElementById('csv-download').innerHTML = `
+        <a href="${url}" download="session.csv">Download session CSV</a>
+      `;
+    }
+
+    // UI Handlers
+    document.getElementById('start-btn').onclick = () => {
+      if (running) return;
+      const user = {
+        mode: document.getElementById('mode').value,
+        rider_mass: parseFloat(document.getElementById('rider_mass').value),
+        bike_mass: parseFloat(document.getElementById('bike_mass').value),
+        cda: parseFloat(document.getElementById('cda').value),
+        crr: parseFloat(document.getElementById('crr').value)
+      };
+      startSession(user);
+    };
+    document.getElementById('stop-btn').onclick = () => {}; // dummy, overwritten in session
+
+  </script>
+</body>
+</html>
