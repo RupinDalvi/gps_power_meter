@@ -25,7 +25,7 @@
     form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;}
     .row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;}
     label{flex:1 0 110px;font-size:1rem;}
-    input[type="number"], input[type="email"], select {
+    input[type="number"], input[type="email"], input[type="text"], select {
       flex:1 0 80px;padding:.4rem;border:1px solid var(--border);
       border-radius:.5rem;font-size:1rem;background:var(--accent);
     }
@@ -48,6 +48,10 @@
       border-left: 4px solid var(--primary);
       display: none;
     }
+    .emailjs-fields { margin-top: .6rem; margin-bottom: .3rem; }
+    .emailjs-fields label { flex: 0 0 130px; font-size: .97rem;}
+    .emailjs-fields input { width: 170px; font-size: .96rem;}
+    #emailjs-instructions { color: #555; font-size: .95rem; margin-bottom: .3rem;}
     #mapModal {
       position:fixed;top:0;left:0;width:100%;height:100%;
       background:rgba(0,0,0,0.6);display:none;align-items:center;
@@ -110,6 +114,17 @@
       <label for="post_email">Enter email to send CSV:</label>
       <input type="email" id="post_email" placeholder="you@example.com" style="padding:.4rem; margin-right:.5rem;">
       <button id="send-post-btn" style="padding:.6rem 1rem; font-size:1rem;">Send CSV</button>
+      <div id="emailjs-instructions">
+        To enable sending, enter your own <a href="https://dashboard.emailjs.com/" target="_blank">EmailJS</a> credentials below:
+      </div>
+      <div class="emailjs-fields row">
+        <label for="emailjs_user_id">User ID:</label>
+        <input type="text" id="emailjs_user_id" placeholder="EmailJS User ID">
+        <label for="emailjs_service_id">Service ID:</label>
+        <input type="text" id="emailjs_service_id" placeholder="Service ID">
+        <label for="emailjs_template_id">Template ID:</label>
+        <input type="text" id="emailjs_template_id" placeholder="Template ID">
+      </div>
     </div>
   </main>
   <!-- Map Modal -->
@@ -123,16 +138,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.emailjs.com/sdk/3.2.0/email.min.js"></script>
   <script>
-    // === EMAILJS CREDENTIALS ===
-    const EMAILJS_USER_ID   = 'YOUR_EMAILJS_USER_ID';
-    const EMAILJS_SERVICE   = 'YOUR_SERVICE_ID';
-    const EMAILJS_TEMPLATE  = 'YOUR_TEMPLATE_ID';
-
-    if (EMAILJS_USER_ID !== 'YOUR_EMAILJS_USER_ID') {
-      emailjs.init(EMAILJS_USER_ID);
-    } else {
-      console.warn('Please set your EmailJS credentials in the script before using email functionality.');
-    }
+    // --- EmailJS credential state (editable by user) ---
+    let EMAILJS_USER_ID = '', EMAILJS_SERVICE = '', EMAILJS_TEMPLATE = '';
 
     // --- Constants & Globals ---
     const g = 9.80665, rho = 1.225, efficiency = 0.23;
@@ -329,8 +336,9 @@
       `;
 
       const preEmail = document.getElementById('email').value.trim();
-      if (preEmail && EMAILJS_USER_ID !== 'YOUR_EMAILJS_USER_ID') {
+      if (preEmail && EMAILJS_USER_ID && EMAILJS_SERVICE && EMAILJS_TEMPLATE) {
         try {
+          emailjs.init(EMAILJS_USER_ID);
           await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
             to_email: preEmail,
             ride_filename: fname,
@@ -349,11 +357,17 @@
     // Handler for post-ride send button
     document.getElementById('send-post-btn').onclick = async () => {
       const addr = document.getElementById('post_email').value.trim();
+      // Get EmailJS credentials from fields
+      EMAILJS_USER_ID    = document.getElementById('emailjs_user_id').value.trim();
+      EMAILJS_SERVICE    = document.getElementById('emailjs_service_id').value.trim();
+      EMAILJS_TEMPLATE   = document.getElementById('emailjs_template_id').value.trim();
+
       if (!addr) return alert('Please enter a valid email.');
-      if (EMAILJS_USER_ID === 'YOUR_EMAILJS_USER_ID') {
-        return alert('EmailJS credentials not set. Cannot send email.');
+      if (!EMAILJS_USER_ID || !EMAILJS_SERVICE || !EMAILJS_TEMPLATE) {
+        return alert('EmailJS credentials not set. Please fill in all fields. See emailjs.com for details.');
       }
       try {
+        emailjs.init(EMAILJS_USER_ID);
         await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
           to_email: addr,
           ride_filename: fname,
