@@ -4,345 +4,431 @@
   <meta charset="UTF-8">
   <title>Cyclist Power & Speed Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
   <style>
     :root {
-      --primary: #1867c0;
-      --secondary: #f0f4fb;
-      --accent: #eaf1fb;
-      --border: #bfd6ee;
-      --danger: #d32f2f;
-      font-size: 16px;
+      --primary: #1867c0; --secondary: #f0f4fb; --accent: #eaf1fb;
+      --border: #bfd6ee; --danger: #d32f2f; font-size: 16px;
     }
-    html, body { margin: 0; padding: 0; background: var(--secondary);}
-    body { min-height: 100vh; font-family: system-ui,sans-serif;}
-    header {
-      background: var(--primary);
-      color: #fff;
-      text-align: center;
-      font-weight: 600;
-      letter-spacing: .03em;
-      font-size: 1.6rem;
-      padding: 1.1rem 0 .8rem 0;
-      border-radius: 0 0 2rem 2rem;
-      box-shadow: 0 4px 12px #1867c011;
+    html,body{margin:0;padding:0;background:var(--secondary);height:100%;}
+    body{display:flex;flex-direction:column;font-family:system-ui,sans-serif;}
+    header{background:var(--primary);color:#fff;text-align:center;font-weight:600;
+      font-size:1.6rem;padding:.8rem 0;border-radius:0 0 1rem 1rem;}
+    main{flex:1;overflow:auto;max-width:600px;width:95vw;margin:1rem auto;
+      background:#fff;border-radius:1rem;box-shadow:0 4px 24px #1867c01b;
+      padding:1.5rem;}
+    form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;}
+    .row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;}
+    label{flex:1 0 110px;font-size:1rem;}
+    input[type="number"], input[type="email"], select {
+      flex:1 0 80px;padding:.4rem;border:1px solid var(--border);
+      border-radius:.5rem;font-size:1rem;background:var(--accent);
     }
-    main {
-      max-width: 510px;
-      margin: 2.2rem auto 0 auto;
-      background: #fff;
-      border-radius: 1.1rem;
-      box-shadow: 0 4px 24px #1867c01b;
-      padding: 2.1rem 1.6rem 1rem 1.6rem;
-      min-height: 63vh;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-    }
-    form { display: flex; flex-direction: column; gap: 1.2rem; margin-bottom: 1.6rem;}
-    .row { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;}
-    label { flex: 1 0 112px; font-size: 1.06rem;}
-    input[type="number"], select {
-      flex: 1 0 80px;
-      padding: .5rem;
-      border-radius: .5rem;
-      border: 1px solid var(--border);
-      font-size: 1.07rem;
-      background: var(--accent);
-    }
-    input[type="checkbox"] { width: 1.2rem; height: 1.2rem;}
-    button {
-      padding: 0.9rem 1.7rem;
-      font-size: 1.15rem;
-      border-radius: 0.7rem;
-      border: none;
-      background: var(--primary);
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-      margin-top: 0.3rem;
-      transition: background .16s;
-    }
-    button:disabled { background: #bbb; cursor: not-allowed;}
+    input[type="checkbox"]{width:1.2rem;height:1.2rem;}
+    button{padding:.8rem 1.5rem;font-size:1.1rem;border:none;
+      border-radius:.7rem;background:var(--primary);color:#fff;
+      cursor:pointer;transition:.2s;}
+    button:disabled{background:#bbb;cursor:not-allowed;}
     #live-stats, #settings-summary {
+      background:var(--accent);border-left:4px solid var(--primary);
+      padding:.8rem;margin-bottom:1rem;border-radius:.5rem;font-size:1rem;
+    }
+    #live-stats strong{color:var(--primary);}
+    #summary, #csv-download{margin-top:1rem;font-size:1rem;}
+    #postEmailSection {
+      margin-top:1rem;
+      padding: 1rem;
       background: var(--accent);
-      border-radius: 0.7rem;
-      margin-bottom: 1.2rem;
-      padding: .9rem 1rem .7rem 1rem;
-      font-size: 1.08rem;
+      border-radius: .7rem;
       border-left: 4px solid var(--primary);
-      word-break: break-word;
+      display: none;
     }
-    #live-stats strong { color: var(--primary);}
-    #summary, #csv-download { margin-top: 1.5rem; font-size: 1.06rem;}
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 1.04rem;
-      margin-top: 0.8rem;
+    #mapModal {
+      position:fixed;top:0;left:0;width:100%;height:100%;
+      background:rgba(0,0,0,0.6);display:none;align-items:center;
+      justify-content:center;z-index:1000;
     }
-    th, td {
-      border: 1px solid #dbe7f9;
-      padding: 0.47rem 0.7rem;
-      text-align: left;
+    #mapContainer {
+      width:90vw;height:80vh;max-width:720px;max-height:520px;
+      border-radius:1rem;overflow:hidden;box-shadow:0 4px 20px #0003;
+      position: relative;
     }
-    th { background: var(--accent);}
-    .danger { color: var(--danger); font-weight: bold;}
-    .current-cda { font-weight: bold; color: #1867c0;}
-    @media (max-width: 650px) {
-      main { padding: 1.1rem .3rem .5rem .3rem;}
-      table, th, td { font-size: 0.97rem;}
-      label { font-size: 1rem;}
-      button { font-size: 1rem; padding: 0.7rem 1.1rem;}
+    #mapContainer .closeBtn {
+      position:absolute;top:.5rem;right:.5rem;
+      background:#fff;border:none;font-size:1.2rem;padding:.2rem .6rem;
+      border-radius:.3rem;cursor:pointer;z-index:1001;
+      box-shadow: 0 2px 6px #0002;
     }
-    @media (max-width: 420px) {
-      main { padding: .3rem .03rem .3rem .03rem;}
-      th, td { font-size: .93rem;}
+    #map { width: 100%; height: 100%; }
+    @media(max-width:480px){
+      label{flex-basis:100%;} button{width:100%;}
+      #mapContainer { width:98vw; height:80vh; }
     }
   </style>
 </head>
 <body>
-<header>Cyclist Power & Speed Tracker</header>
-<main>
-  <form id="settings" autocomplete="off">
-    <div class="row">
-      <label for="mode">Mode:</label>
-      <select id="mode">
-        <option value="simulate">Simulate</option>
-        <option value="gps">Use GPS</option>
-      </select>
-      <label for="auto_pose" style="flex:2 0 100px;">
-        <input type="checkbox" id="auto_pose" checked> Auto Pose
-      </label>
+  <header>Cyclist Power & Speed Tracker</header>
+  <main>
+    <form id="settings" autocomplete="off">
+      <div class="row">
+        <label for="mode">Mode:</label>
+        <select id="mode">
+          <option value="simulate">Simulate</option>
+          <option value="gps">Use GPS</option>
+        </select>
+        <label><input type="checkbox" id="auto_pose" checked> Auto Pose</label>
+      </div>
+      <div class="row">
+        <label>Rider mass (kg):</label>
+        <input type="number" id="rider_mass" value="70" min="30" max="120" step="1">
+        <label>Bike mass (kg):</label>
+        <input type="number" id="bike_mass" value="8" min="5" max="20" step="0.1">
+      </div>
+      <div class="row">
+        <label for="cda">Base CdA (m²):</label>
+        <input type="number" id="cda" value="0.3" min="0.2" max="0.6" step="0.01">
+        <label for="crr">CRR:</label>
+        <input type="number" id="crr" value="0.004" min="0.002" max="0.01" step="0.0001">
+      </div>
+      <div class="row">
+        <label for="email">Email (optional):</label>
+        <input type="email" id="email" placeholder="you@example.com">
+      </div>
+      <button type="button" id="start-btn">Start Session</button>
+      <button type="button" id="stop-btn" disabled>Stop Session</button>
+    </form>
+    <div id="settings-summary"></div>
+    <div id="live-stats"></div>
+    <div id="summary"></div>
+    <div id="csv-download"></div>
+    <div id="postEmailSection">
+      <label for="post_email">Enter email to send CSV:</label>
+      <input type="email" id="post_email" placeholder="you@example.com" style="padding:.4rem; margin-right:.5rem;">
+      <button id="send-post-btn" style="padding:.6rem 1rem; font-size:1rem;">Send CSV</button>
     </div>
-    <div class="row">
-      <label>Rider mass (kg):</label>
-      <input type="number" id="rider_mass" value="70" min="30" max="120" step="1">
-      <label>Bike mass (kg):</label>
-      <input type="number" id="bike_mass" value="8" min="5" max="20" step="0.1">
+  </main>
+  <!-- Map Modal -->
+  <div id="mapModal">
+    <div id="mapContainer">
+      <button class="closeBtn">&times;</button>
+      <div id="map"></div>
     </div>
-    <div class="row">
-      <label for="cda">CdA (m²):</label>
-      <input type="number" id="cda" value="0.3" min="0.2" max="0.5" step="0.01">
-      <label for="crr">CRR:</label>
-      <input type="number" id="crr" value="0.004" min="0.002" max="0.01" step="0.0001">
-    </div>
-    <button type="button" id="start-btn">Start Session</button>
-    <button type="button" id="stop-btn" disabled>Stop Session</button>
-  </form>
-  <div id="settings-summary"></div>
-  <div id="live-stats"></div>
-  <div id="summary"></div>
-  <div id="csv-download"></div>
-</main>
-<script>
-  // --- Constants & Globals ---
-  const g = 9.80665, rho = 1.225, efficiency = 0.23;
-  let dataPoints = [], intervalHandles = [], running = false, lastTimestamp = null;
-  let currentWind = {speed: 0, direction: 0}, currentCdA = 0.3, positions = [];
+  </div>
+  <!-- Leaflet & EmailJS SDKs -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.emailjs.com/sdk/3.2.0/email.min.js"></script>
+  <script>
+    // === EMAILJS CREDENTIALS ===
+    const EMAILJS_USER_ID   = 'YOUR_EMAILJS_USER_ID';
+    const EMAILJS_SERVICE   = 'YOUR_SERVICE_ID';
+    const EMAILJS_TEMPLATE  = 'YOUR_TEMPLATE_ID';
 
-  // --- Utilities ---
-  function toCSV(rows) {
-    const header = ['timestamp','latitude','longitude','altitude','power','speed','cda','gradient'];
-    const csv = [header.join(',')];
-    for (const r of rows) {
-      csv.push([r.timestamp, r.lat, r.lon, r.alt, r.power, r.speed, r.cda, r.gradient].join(','));
+    if (EMAILJS_USER_ID !== 'YOUR_EMAILJS_USER_ID') {
+      emailjs.init(EMAILJS_USER_ID);
+    } else {
+      console.warn('Please set your EmailJS credentials in the script before using email functionality.');
     }
-    return csv.join('\n');
-  }
-  function haversine(lat1, lon1, lat2, lon2) {
-    const toRad = x => x * Math.PI/180, R = 6371000;
-    const dLat = toRad(lat2-lat1), dLon = toRad(lon2-lon1);
-    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-    return 2 * R * Math.asin(Math.sqrt(a));
-  }
-  function bearing(lat1, lon1, lat2, lon2) {
-    const toRad = x => x * Math.PI/180, toDeg = x => x * 180/Math.PI;
-    const dLon = toRad(lon2-lon1), y = Math.sin(dLon) * Math.cos(toRad(lat2));
-    const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
-    return (toDeg(Math.atan2(y, x)) + 360) % 360;
-  }
-  async function getWind(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`;
-    try {
-      const res = await fetch(url); const js = await res.json();
-      if (js.current_weather)
-        return {speed: js.current_weather.windspeed, direction: js.current_weather.winddirection};
-    } catch (e) {}
-    return {speed: 0, direction: 0};
-  }
-  async function getElevation(lat, lon) {
-    const url = `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`;
-    try {
-      const res = await fetch(url); const js = await res.json();
-      if (js.elevation) return js.elevation;
-    } catch (e) {}
-    return 0;
-  }
-  function simulatePosition(baseLat, baseLon, metersEast, metersNorth) {
-    const dLat = metersNorth/111320, dLon = metersEast/(40075000*Math.cos(baseLat*Math.PI/180)/360);
-    return [baseLat + dLat, baseLon + dLon];
-  }
-  function autoPoseCdA(gradient) {
-    if (gradient > 0.03) return 0.40;      // climbing, upright or out of saddle
-    if (gradient < -0.03) return 0.28;     // descent, drops
-    return 0.32;                           // flat, hoods
-  }
-  function calcPower(p1, p2, wind, user, useAutoPose) {
-    const dist = haversine(p1.lat, p1.lon, p2.lat, p2.lon);
-    const dt = (p2.timestamp - p1.timestamp)/1000;
-    if (dt <= 0) return {power: 0, speed: 0, cda: user.cda, gradient: 0};
-    const speed = dist / dt;
-    const dAlt = p2.alt - p1.alt;
-    const gradient = dist < 1 ? 0 : dAlt / dist;
-    const theta = Math.atan(gradient);
-    const course = bearing(p1.lat, p1.lon, p2.lat, p2.lon);
-    const wind_rel = wind.speed * Math.cos((wind.direction - course) * Math.PI/180);
-    const apparent_speed = speed + wind_rel;
-    let cda = user.cda;
-    if (useAutoPose) cda = autoPoseCdA(gradient);
-    const mass = user.rider_mass + user.bike_mass;
-    const F_gravity = mass * g * Math.sin(theta);
-    const F_roll = mass * g * user.crr * Math.cos(theta);
-    const F_aero = 0.5 * rho * cda * apparent_speed**2;
-    const totalF = F_gravity + F_roll + F_aero;
-    const power = totalF * speed;
-    return {power: Math.max(0, power), speed: speed, cda: cda, gradient: gradient};
-  }
 
-  // --- Main Session Logic ---
-  function startSession(user, useAutoPose) {
-    running = true; dataPoints = []; positions = [];
-    lastTimestamp = Date.now();
-    document.getElementById('summary').textContent = "";
-    document.getElementById('csv-download').textContent = "";
-    document.getElementById('start-btn').disabled = true;
-    document.getElementById('stop-btn').disabled = false;
-    document.getElementById('live-stats').innerHTML = `<span class="danger">Session started. Awaiting data ...</span>`;
-    let baseLat = 51.05011, baseLon = -114.08529, metersEast = 0, metersNorth = 0;
-    let watchId = null;
-    function stopWatch() { if (watchId !== null) navigator.geolocation.clearWatch(watchId);}
-    // Every 5s: get pos/elev/wind and compute
-    intervalHandles.push(setInterval(async () => {
-      const now = Date.now();
-      let lat, lon, alt;
-      if (user.mode === "simulate") {
-        metersEast += 4 + (Math.random() - 0.5)*0.8;
-        metersNorth += (Math.random() - 0.5)*0.3;
-        [lat, lon] = simulatePosition(baseLat, baseLon, metersEast, metersNorth);
-        alt = 1050 + Math.sin(metersEast/200)*8 + Math.random();
-      } else if (positions.length > 0) {
-        const pos = positions[positions.length-1];
-        lat = pos.coords.latitude;
-        lon = pos.coords.longitude;
-        alt = await getElevation(lat, lon);
-      } else {
-        document.getElementById('live-stats').innerHTML = `<span class="danger">Waiting for GPS position ...</span>`;
-        return;
+    // --- Constants & Globals ---
+    const g = 9.80665, rho = 1.225, efficiency = 0.23;
+    let dataPoints = [], intervalHandles = [], running = false;
+    let currentWind = {speed:0,direction:0}, currentCdA = 0, positions=[],
+        rideStartTime, rideDateStr, csvContent, fname;
+
+    // --- Utils ---
+    function pad(n){return n<10?'0'+n:n;}
+    function makeFilename() {
+      const d = rideStartTime;
+      rideDateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+      const t = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+      return `ride_${rideDateStr}_${t}.csv`;
+    }
+    function toCSV(rows) {
+      const header = [
+        'timestamp','latitude','longitude','altitude',
+        'power','speed','cda','gradient','wind_speed','wind_direction'
+      ];
+      const csv = [header.join(',')];
+      for (const r of rows) {
+        csv.push([
+          r.timestamp, r.lat, r.lon, r.alt,
+          r.power, r.speed, r.cda, r.gradient,
+          r.wind.speed, r.wind.direction
+        ].join(','));
       }
-      currentWind = await getWind(lat, lon);
-      let prev = dataPoints.length > 0 ? dataPoints[dataPoints.length-1] : {lat, lon, alt, timestamp: now-5000};
-      const {power, speed, cda, gradient} = calcPower(prev, {lat, lon, alt, timestamp: now}, currentWind, user, useAutoPose);
-      currentCdA = cda;
-      dataPoints.push({
-        timestamp: now, lat, lon, alt, power, speed, cda, gradient
-      });
-      updateStatsDisplay();
-    }, 5000));
-    // For GPS: collect positions
-    if (user.mode === "gps" && navigator.geolocation) {
-      watchId = navigator.geolocation.watchPosition(
-        pos => positions.push(pos),
-        err => document.getElementById('live-stats').innerHTML =
-          `<span class="danger">GPS error: ${err.message}</span>`,
-        {enableHighAccuracy: true, maximumAge: 4000, timeout: 10000}
-      );
+      return csv.join('\n');
     }
-    // Attach stop handler
-    document.getElementById('stop-btn').onclick = () => {
-      running = false; stopWatch();
-      for (const h of intervalHandles) clearInterval(h);
-      intervalHandles = [];
-      document.getElementById('start-btn').disabled = false;
-      document.getElementById('stop-btn').disabled = true;
-      showSummary(user);
-    };
-  }
-
-  function updateStatsDisplay() {
-    if (dataPoints.length < 2) return;
-    const recent = dataPoints.slice(-1);
-    const avgPower = recent.reduce((s,r)=>s+r.power,0)/recent.length;
-    const avgSpeed = recent.reduce((s,r)=>s+r.speed,0)/recent.length;
-    const grad = recent[0].gradient*100;
-    document.getElementById('live-stats').innerHTML = `
-      <strong>Current (last 5s):</strong><br>
-      Power: ${avgPower.toFixed(1)} W<br>
-      Speed: ${(avgSpeed*3.6).toFixed(1)} km/h<br>
-      Gradient: ${grad.toFixed(1)}%<br>
-      Wind: ${currentWind.speed.toFixed(1)} m/s at ${currentWind.direction.toFixed(0)}°
-      <br>CdA: <span class="current-cda">${currentCdA.toFixed(2)} m²</span>
-    `;
-  }
-
-  function showSummary(user) {
-    const clean = dataPoints.filter(r=>r.power && r.speed && !isNaN(r.power) && !isNaN(r.speed));
-    if (clean.length === 0) return;
-    const avgPower = clean.reduce((s,r)=>s+r.power,0)/clean.length;
-    const avgSpeed = clean.reduce((s,r)=>s+r.speed,0)/clean.length;
-    const totalJoules = clean.reduce((s,r,i,arr)=>{
-      if (i===0) return s;
-      const dt = (r.timestamp - arr[i-1].timestamp)/1000;
-      return s + r.power*dt;
-    }, 0);
-    const calories = totalJoules / efficiency / 4184;
-    let totalElev = 0;
-    for (let i=1; i<clean.length; ++i) {
-      const d = clean[i].alt - clean[i-1].alt;
-      if (d > 0.3) totalElev += d;
+    function hav(lat1,lon1,lat2,lon2){
+      const R=6371000, toRad=x=>x*Math.PI/180;
+      const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+      const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(a));
     }
-    document.getElementById('summary').innerHTML = `
-      <h3>Session Summary</h3>
-      <table>
-        <tr><th>Average Power</th><td>${avgPower.toFixed(1)} W</td></tr>
-        <tr><th>Average Speed</th><td>${(avgSpeed*3.6).toFixed(1)} km/h</td></tr>
-        <tr><th>Total Calories</th><td>${calories.toFixed(1)} kcal</td></tr>
-        <tr><th>Total Elevation Gain</th><td>${totalElev.toFixed(1)} m</td></tr>
-      </table>
-    `;
-    const csv = toCSV(clean);
-    const blob = new Blob([csv], {type:'text/csv'});
-    const url = URL.createObjectURL(blob);
-    document.getElementById('csv-download').innerHTML =
-      `<a href="${url}" download="session.csv">Download session CSV</a>`;
-  }
+    function bearing(lat1,lon1,lat2,lon2){
+      const toRad=x=>x*Math.PI/180, toDeg=x=>x*180/Math.PI;
+      const dLon=toRad(lon2-lon1),
+        y=Math.sin(dLon)*Math.cos(toRad(lat2)),
+        x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))
+          -Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+      return (toDeg(Math.atan2(y,x))+360)%360;
+    }
+    async function getWind(lat,lon){
+      try{
+        const js=await(fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`
+        ).then(r=>r.json()));
+        return js.current_weather
+          ? {speed:js.current_weather.windspeed, direction:js.current_weather.winddirection}
+          : {speed:0,direction:0};
+      }catch{return {speed:0,direction:0};}
+    }
+    async function getElevation(lat,lon){
+      try{
+        const js=await(fetch(
+          `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`
+        ).then(r=>r.json()));
+        return js.elevation||0;
+      }catch{return 0;}
+    }
+    function simulatePos(bLat,bLon,e,n){
+      const dLat=n/111320, dLon=e/(40075000*Math.cos(bLat*Math.PI/180)/360);
+      return [bLat+dLat,bLon+dLon];
+    }
+    // Auto-pose relative to base CdA: climbs +10%, flats 0%, descents -10%
+    function autoPoseCdA(base,grad){
+      if(grad>0.03) return base*1.10;
+      if(grad<-0.03) return base*0.90;
+      return base;
+    }
+    function calcPower(p1,p2,wind,user,useAuto){
+      const dist=hav(p1.lat,p1.lon,p2.lat,p2.lon),
+        dt=(p2.timestamp-p1.timestamp)/1000;
+      if(dt<=0) return {power:0,speed:0,cda:user.cda,gradient:0};
+      const speed=dist/dt,
+        dAlt=p2.alt-p1.alt,
+        grad=dist<1?0:dAlt/dist,
+        theta=Math.atan(grad),
+        course=bearing(p1.lat,p1.lon,p2.lat,p2.lon),
+        wind_rel=wind.speed*Math.cos((wind.direction-course)*Math.PI/180),
+        app_sp=speed+wind_rel;
+      let cda=user.cda;
+      if(useAuto) cda=autoPoseCdA(user.cda,grad);
+      const mass=user.rider_mass+user.bike_mass,
+        Fg=mass*g*Math.sin(theta),
+        Fr=mass*g*user.crr*Math.cos(theta),
+        Fa=0.5*rho*cda*app_sp**2,
+        P=(Fg+Fr+Fa)*speed;
+      return {power:Math.max(0,P),speed,cda,gradient:grad};
+    }
 
-  // --- UI Handlers ---
-  function updateSettingsSummary() {
-    const cda = parseFloat(document.getElementById('cda').value);
-    const autoPose = document.getElementById('auto_pose').checked;
-    document.getElementById('settings-summary').innerHTML =
-      autoPose
-        ? `Auto Pose: <strong>ON</strong> (CdA will be adjusted according to slope: <span class="current-cda">0.40/0.32/0.28 m²</span> for climbs/flats/descents)`
-        : `Auto Pose: <strong>OFF</strong> (CdA fixed at <span class="current-cda">${cda.toFixed(2)} m²</span>)`;
-  }
-  document.getElementById('auto_pose').onchange = updateSettingsSummary;
-  document.getElementById('cda').oninput = updateSettingsSummary;
-  updateSettingsSummary();
+    // --- Session ---
+    function startSession(user,useAuto){
+      running=true; dataPoints=[]; positions=[];
+      rideStartTime=new Date();
+      document.getElementById('start-btn').disabled=true;
+      document.getElementById('stop-btn').disabled=false;
+      document.getElementById('live-stats').innerHTML=`<span class="danger">Starting…</span>`;
+      document.getElementById('postEmailSection').style.display = 'none';
+      let baseLat=51.05011, baseLon=-114.08529,
+          metersEast=0, metersNorth=0, watchId=null;
 
-  document.getElementById('start-btn').onclick = () => {
-    if (running) return;
-    const user = {
-      mode: document.getElementById('mode').value,
-      rider_mass: parseFloat(document.getElementById('rider_mass').value),
-      bike_mass: parseFloat(document.getElementById('bike_mass').value),
-      cda: parseFloat(document.getElementById('cda').value),
-      crr: parseFloat(document.getElementById('crr').value)
+      // 5s sampling loop
+      intervalHandles.push(setInterval(async()=>{
+        const now=Date.now();
+        let lat,lon,alt;
+        if(user.mode==='simulate'){
+          metersEast+=4+(Math.random()-0.5)*0.8;
+          metersNorth+=(Math.random()-0.5)*0.3;
+          [lat,lon]=simulatePos(baseLat,baseLon,metersEast,metersNorth);
+          alt=1050+Math.sin(metersEast/200)*8+Math.random();
+        } else if(positions.length){
+          const pos=positions[positions.length-1];
+          lat=pos.coords.latitude; lon=pos.coords.longitude;
+          alt=await getElevation(lat,lon);
+        } else {
+          document.getElementById('live-stats').innerHTML=
+            `<span class="danger">Waiting for GPS…</span>`;
+          return;
+        }
+        currentWind=await getWind(lat,lon);
+        const prev=dataPoints.length?dataPoints.at(-1):{lat,lon,alt,timestamp:now-5000};
+        const rec=calcPower(prev,{lat,lon,alt,timestamp:now},currentWind,user,useAuto);
+        currentCdA=rec.cda;
+        dataPoints.push({...rec,timestamp:now,lat,lon,alt,wind:currentWind});
+        updateStats();
+      },5000));
+
+      // GPS watch
+      if(user.mode==='gps'&&navigator.geolocation){
+        watchId=navigator.geolocation.watchPosition(
+          p=>positions.push(p),
+          e=>document.getElementById('live-stats').innerHTML=
+            `<span class="danger">GPS error: ${e.message}</span>`,
+          {enableHighAccuracy:true,maximumAge:3000,timeout:8000}
+        );
+      }
+      // Stop handler
+      document.getElementById('stop-btn').onclick=()=>{
+        running=false;
+        if(watchId) navigator.geolocation.clearWatch(watchId);
+        intervalHandles.forEach(h=>clearInterval(h)); intervalHandles=[];
+        document.getElementById('start-btn').disabled=false;
+        document.getElementById('stop-btn').disabled=true;
+        endSession(user);
+      };
+    }
+
+    function updateStats(){
+      if(dataPoints.length<1) return;
+      const last=dataPoints.at(-1),
+        P=last.power.toFixed(1),
+        V=(last.speed*3.6).toFixed(1),
+        G=(last.gradient*100).toFixed(1),
+        WS=last.wind.speed.toFixed(1),
+        WD=last.wind.direction.toFixed(0),
+        C=currentCdA.toFixed(2);
+      document.getElementById('live-stats').innerHTML=`
+        <strong>Last 5s:</strong><br>
+        Power: ${P} W<br>
+        Speed: ${V} km/h<br>
+        Gradient: ${G}%<br>
+        Wind: ${WS} m/s @${WD}°<br>
+        CdA: <strong>${C} m²</strong>
+      `;
+    }
+
+    async function endSession(user){
+      // summary
+      const clean=dataPoints.filter(r=>r.power>0);
+      if(!clean.length) return;
+      const avgP=clean.reduce((s,r)=>s+r.power,0)/clean.length,
+            avgV=clean.reduce((s,r)=>s+r.speed,0)/clean.length,
+            joules=clean.reduce((s,r,i,arr)=>i? s+r.power*((r.timestamp-arr[i-1].timestamp)/1000):s,0),
+            cals=(joules/efficiency/4184).toFixed(1),
+            elev=clean.reduce((s,r,i,a)=>i && (d=a[i].alt-a[i-1].alt)>0.3? s+d:s,0).toFixed(1);
+      document.getElementById('summary').innerHTML=`
+        <h3>Ride Summary</h3>
+        <table>
+          <tr><th>Avg Power</th><td>${avgP.toFixed(1)} W</td></tr>
+          <tr><th>Avg Speed</th><td>${(avgV*3.6).toFixed(1)} km/h</td></tr>
+          <tr><th>Calories</th><td>${cals} kcal</td></tr>
+          <tr><th>Elev Gain</th><td>${elev} m</td></tr>
+        </table>`;
+      // CSV
+      csvContent = toCSV(dataPoints);
+      fname = makeFilename();
+      const blob=new Blob([csvContent],{type:'text/csv'});
+      const url=URL.createObjectURL(blob);
+      document.getElementById('csv-download').innerHTML=`
+        <a href="${url}" download="${fname}">Download ${fname}</a>
+      `;
+
+      const preEmail = document.getElementById('email').value.trim();
+      if (preEmail && EMAILJS_USER_ID !== 'YOUR_EMAILJS_USER_ID') {
+        try {
+          await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+            to_email: preEmail,
+            ride_filename: fname,
+            ride_data: csvContent
+          });
+          alert('CSV emailed to ' + preEmail);
+        } catch (e) {
+          alert('Could not send email: ' + e.message);
+        }
+      } else {
+        document.getElementById('postEmailSection').style.display = 'block';
+      }
+      showMap();
+    }
+
+    // Handler for post-ride send button
+    document.getElementById('send-post-btn').onclick = async () => {
+      const addr = document.getElementById('post_email').value.trim();
+      if (!addr) return alert('Please enter a valid email.');
+      if (EMAILJS_USER_ID === 'YOUR_EMAILJS_USER_ID') {
+        return alert('EmailJS credentials not set. Cannot send email.');
+      }
+      try {
+        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+          to_email: addr,
+          ride_filename: fname,
+          ride_data: csvContent
+        });
+        alert('CSV emailed to ' + addr);
+        document.getElementById('postEmailSection').style.display = 'none';
+      } catch (e) {
+        alert('Could not send email: ' + e.message);
+      }
     };
-    const useAutoPose = document.getElementById('auto_pose').checked;
-    startSession(user, useAutoPose);
-  };
-  document.getElementById('stop-btn').onclick = () => {};
 
-</script>
+    // --- Map ---
+    function showMap(){
+      const modal=document.getElementById('mapModal');
+      modal.style.display='flex';
+      setTimeout(()=>{ // ensures DOM ready
+        const map=L.map('map').setView([dataPoints[0].lat,dataPoints[0].lon],13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+          maxZoom:19, attribution:'© OpenStreetMap'
+        }).addTo(map);
+        const latlngs=dataPoints.map(r=>[r.lat,r.lon]);
+        const poly=L.polyline(latlngs,{color:'blue'}).addTo(map);
+        map.fitBounds(poly.getBounds());
+        poly.on('click',e=>{
+          // find nearest record
+          let minDist=1e9, idx=0;
+          dataPoints.forEach((r,i)=>{
+            const d=hav(r.lat,r.lon,e.latlng.lat,e.latlng.lng);
+            if(d<minDist){minDist=d;idx=i;}
+          });
+          const r=dataPoints[idx];
+          const d=new Date(r.timestamp);
+          const info=`
+            <strong>${d.toLocaleString()}</strong><br>
+            Power: ${r.power.toFixed(1)} W<br>
+            Speed: ${(r.speed*3.6).toFixed(1)} km/h<br>
+            Gradient: ${(r.gradient*100).toFixed(1)}%<br>
+            Wind: ${r.wind.speed.toFixed(1)} m/s @${r.wind.direction.toFixed(0)}°
+            <br>CdA: ${r.cda.toFixed(2)} m²
+            <br>Lat: ${r.lat.toFixed(5)}<br>Lon: ${r.lon.toFixed(5)}<br>Alt: ${r.alt.toFixed(1)} m
+          `;
+          L.popup().setLatLng([r.lat,r.lon]).setContent(info).openOn(map);
+        });
+        document.querySelector('#mapContainer .closeBtn').onclick=()=>{
+          modal.style.display='none';
+          map.remove();
+        };
+      }, 100);
+    }
+
+    // --- UI Wiring ---
+    function updateSettingsSummary(){
+      const base=parseFloat(document.getElementById('cda').value),
+            auto=document.getElementById('auto_pose').checked;
+      document.getElementById('settings-summary').textContent=
+        auto
+          ? `Auto Pose ON (±10% of base CdA: base ${base} m² ⇒ climbs ${(base*1.1).toFixed(2)} / flats ${base.toFixed(2)} / desc ${(base*0.9).toFixed(2)})`
+          : `Auto Pose OFF (fixed CdA ${base.toFixed(2)} m²)`;
+    }
+    document.getElementById('auto_pose').onchange=updateSettingsSummary;
+    document.getElementById('cda').oninput=updateSettingsSummary;
+    updateSettingsSummary();
+    document.getElementById('start-btn').onclick=()=>{
+      if(running) return;
+      const user={
+        mode: document.getElementById('mode').value,
+        rider_mass: parseFloat(document.getElementById('rider_mass').value),
+        bike_mass: parseFloat(document.getElementById('bike_mass').value),
+        cda: parseFloat(document.getElementById('cda').value),
+        crr: parseFloat(document.getElementById('crr').value)
+      };
+      startSession(user, document.getElementById('auto_pose').checked);
+    };
+    document.getElementById('stop-btn').onclick=()=>{};
+  </script>
 </body>
 </html>
