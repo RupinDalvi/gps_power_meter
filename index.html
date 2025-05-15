@@ -25,7 +25,7 @@
     form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;}
     .row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;}
     label{flex:1 0 110px;font-size:1rem;}
-    input[type="number"], input[type="email"], input[type="text"], select {
+    input[type="number"], input[type="email"], input[type="text"], input[type="password"], select {
       flex:1 0 80px;padding:.4rem;border:1px solid var(--border);
       border-radius:.5rem;font-size:1rem;background:var(--accent);
     }
@@ -48,9 +48,9 @@
       border-left: 4px solid var(--primary);
       display: none;
     }
-    .emailjs-fields { margin-top: .6rem; margin-bottom: .3rem; }
-    .emailjs-fields label { flex: 0 0 130px; font-size: .97rem;}
-    .emailjs-fields input { width: 170px; font-size: .96rem;}
+    .emailjs-fields { margin-top: .6rem; margin-bottom: .3rem; display: flex; flex-wrap: wrap; gap: 1rem;}
+    .emailjs-fields label { flex: 0 0 120px; font-size: .97rem;}
+    .emailjs-fields input { width: 175px; font-size: .96rem;}
     #emailjs-instructions { color: #555; font-size: .95rem; margin-bottom: .3rem;}
     #mapModal {
       position:fixed;top:0;left:0;width:100%;height:100%;
@@ -72,6 +72,7 @@
     @media(max-width:480px){
       label{flex-basis:100%;} button{width:100%;}
       #mapContainer { width:98vw; height:80vh; }
+      .emailjs-fields { flex-direction: column; }
     }
   </style>
 </head>
@@ -115,15 +116,15 @@
       <input type="email" id="post_email" placeholder="you@example.com" style="padding:.4rem; margin-right:.5rem;">
       <button id="send-post-btn" style="padding:.6rem 1rem; font-size:1rem;">Send CSV</button>
       <div id="emailjs-instructions">
-        To enable sending, enter your own <a href="https://dashboard.emailjs.com/" target="_blank">EmailJS</a> credentials below:
+        To enable email sending, enter your own <a href="https://dashboard.emailjs.com/" target="_blank">EmailJS</a> credentials below (they remain private and are not shown):
       </div>
-      <div class="emailjs-fields row">
+      <div class="emailjs-fields">
         <label for="emailjs_user_id">User ID:</label>
-        <input type="text" id="emailjs_user_id" placeholder="EmailJS User ID">
+        <input type="password" id="emailjs_user_id" placeholder="EmailJS User ID" autocomplete="off">
         <label for="emailjs_service_id">Service ID:</label>
-        <input type="text" id="emailjs_service_id" placeholder="Service ID">
+        <input type="password" id="emailjs_service_id" placeholder="Service ID" autocomplete="off">
         <label for="emailjs_template_id">Template ID:</label>
-        <input type="text" id="emailjs_template_id" placeholder="Template ID">
+        <input type="password" id="emailjs_template_id" placeholder="Template ID" autocomplete="off">
       </div>
     </div>
   </main>
@@ -206,7 +207,6 @@
       const dLat=n/111320, dLon=e/(40075000*Math.cos(bLat*Math.PI/180)/360);
       return [bLat+dLat,bLon+dLon];
     }
-    // Auto-pose relative to base CdA: climbs +10%, flats 0%, descents -10%
     function autoPoseCdA(base,grad){
       if(grad>0.03) return base*1.10;
       if(grad<-0.03) return base*0.90;
@@ -244,7 +244,6 @@
       let baseLat=51.05011, baseLon=-114.08529,
           metersEast=0, metersNorth=0, watchId=null;
 
-      // 5s sampling loop
       intervalHandles.push(setInterval(async()=>{
         const now=Date.now();
         let lat,lon,alt;
@@ -270,7 +269,6 @@
         updateStats();
       },5000));
 
-      // GPS watch
       if(user.mode==='gps'&&navigator.geolocation){
         watchId=navigator.geolocation.watchPosition(
           p=>positions.push(p),
@@ -279,7 +277,6 @@
           {enableHighAccuracy:true,maximumAge:3000,timeout:8000}
         );
       }
-      // Stop handler
       document.getElementById('stop-btn').onclick=()=>{
         running=false;
         if(watchId) navigator.geolocation.clearWatch(watchId);
@@ -310,7 +307,6 @@
     }
 
     async function endSession(user){
-      // summary
       const clean=dataPoints.filter(r=>r.power>0);
       if(!clean.length) return;
       const avgP=clean.reduce((s,r)=>s+r.power,0)/clean.length,
@@ -326,7 +322,6 @@
           <tr><th>Calories</th><td>${cals} kcal</td></tr>
           <tr><th>Elev Gain</th><td>${elev} m</td></tr>
         </table>`;
-      // CSV
       csvContent = toCSV(dataPoints);
       fname = makeFilename();
       const blob=new Blob([csvContent],{type:'text/csv'});
@@ -334,6 +329,11 @@
       document.getElementById('csv-download').innerHTML=`
         <a href="${url}" download="${fname}">Download ${fname}</a>
       `;
+
+      // Get (hidden) credentials if present in UI
+      EMAILJS_USER_ID = document.getElementById('emailjs_user_id')?.value || EMAILJS_USER_ID;
+      EMAILJS_SERVICE = document.getElementById('emailjs_service_id')?.value || EMAILJS_SERVICE;
+      EMAILJS_TEMPLATE = document.getElementById('emailjs_template_id')?.value || EMAILJS_TEMPLATE;
 
       const preEmail = document.getElementById('email').value.trim();
       if (preEmail && EMAILJS_USER_ID && EMAILJS_SERVICE && EMAILJS_TEMPLATE) {
@@ -354,10 +354,9 @@
       showMap();
     }
 
-    // Handler for post-ride send button
     document.getElementById('send-post-btn').onclick = async () => {
       const addr = document.getElementById('post_email').value.trim();
-      // Get EmailJS credentials from fields
+      // Read hidden credential fields
       EMAILJS_USER_ID    = document.getElementById('emailjs_user_id').value.trim();
       EMAILJS_SERVICE    = document.getElementById('emailjs_service_id').value.trim();
       EMAILJS_TEMPLATE   = document.getElementById('emailjs_template_id').value.trim();
@@ -380,11 +379,10 @@
       }
     };
 
-    // --- Map ---
     function showMap(){
       const modal=document.getElementById('mapModal');
       modal.style.display='flex';
-      setTimeout(()=>{ // ensures DOM ready
+      setTimeout(()=>{ 
         const map=L.map('map').setView([dataPoints[0].lat,dataPoints[0].lon],13);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
           maxZoom:19, attribution:'© OpenStreetMap'
@@ -393,7 +391,6 @@
         const poly=L.polyline(latlngs,{color:'blue'}).addTo(map);
         map.fitBounds(poly.getBounds());
         poly.on('click',e=>{
-          // find nearest record
           let minDist=1e9, idx=0;
           dataPoints.forEach((r,i)=>{
             const d=hav(r.lat,r.lon,e.latlng.lat,e.latlng.lng);
@@ -419,7 +416,6 @@
       }, 100);
     }
 
-    // --- UI Wiring ---
     function updateSettingsSummary(){
       const base=parseFloat(document.getElementById('cda').value),
             auto=document.getElementById('auto_pose').checked;
