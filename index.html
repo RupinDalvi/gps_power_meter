@@ -1,444 +1,706 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Cyclist Power & Speed Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- Leaflet CSS -->
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    crossorigin=""
-  />
-  <style>
-    :root {
-      --primary: #1867c0; --secondary: #f0f4fb; --accent: #eaf1fb;
-      --border: #bfd6ee; --danger: #d32f2f; font-size: 16px;
-    }
-    html,body{margin:0;padding:0;background:var(--secondary);height:100%;}
-    body{display:flex;flex-direction:column;font-family:system-ui,sans-serif;}
-    header{background:var(--primary);color:#fff;text-align:center;font-weight:600;
-      font-size:1.6rem;padding:.8rem 0;border-radius:0 0 1rem 1rem;}
-    main{flex:1;overflow:auto;max-width:600px;width:95vw;margin:1rem auto;
-      background:#fff;border-radius:1rem;box-shadow:0 4px 24px #1867c01b;
-      padding:1.5rem;}
-    form{display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;}
-    .row{display:flex;flex-wrap:wrap;gap:1rem;align-items:center;}
-    label{flex:1 0 110px;font-size:1rem;}
-    input[type="number"], input[type="email"], input[type="text"], input[type="password"], select {
-      flex:1 0 80px;padding:.4rem;border:1px solid var(--border);
-      border-radius:.5rem;font-size:1rem;background:var(--accent);
-    }
-    input[type="checkbox"]{width:1.2rem;height:1.2rem;}
-    button{padding:.8rem 1.5rem;font-size:1.1rem;border:none;
-      border-radius:.7rem;background:var(--primary);color:#fff;
-      cursor:pointer;transition:.2s;}
-    button:disabled{background:#bbb;cursor:not-allowed;}
-    #live-stats, #settings-summary {
-      background:var(--accent);border-left:4px solid var(--primary);
-      padding:.8rem;margin-bottom:1rem;border-radius:.5rem;font-size:1rem;
-    }
-    #live-stats strong{color:var(--primary);}
-    #summary, #csv-download{margin-top:1rem;font-size:1rem;}
-    #postEmailSection {
-      margin-top:1rem;
-      padding: 1rem;
-      background: var(--accent);
-      border-radius: .7rem;
-      border-left: 4px solid var(--primary);
-      display: none;
-    }
-    .emailjs-fields { margin-top: .6rem; margin-bottom: .3rem; display: flex; flex-wrap: wrap; gap: 1rem;}
-    .emailjs-fields label { flex: 0 0 120px; font-size: .97rem;}
-    .emailjs-fields input { width: 175px; font-size: .96rem;}
-    #emailjs-instructions { color: #555; font-size: .95rem; margin-bottom: .3rem;}
-    #mapModal {
-      position:fixed;top:0;left:0;width:100%;height:100%;
-      background:rgba(0,0,0,0.6);display:none;align-items:center;
-      justify-content:center;z-index:1000;
-    }
-    #mapContainer {
-      width:90vw;height:80vh;max-width:720px;max-height:520px;
-      border-radius:1rem;overflow:hidden;box-shadow:0 4px 20px #0003;
-      position: relative;
-    }
-    #mapContainer .closeBtn {
-      position:absolute;top:.5rem;right:.5rem;
-      background:#fff;border:none;font-size:1.2rem;padding:.2rem .6rem;
-      border-radius:.3rem;cursor:pointer;z-index:1001;
-      box-shadow: 0 2px 6px #0002;
-    }
-    #map { width: 100%; height: 100%; }
-    @media(max-width:480px){
-      label{flex-basis:100%;} button{width:100%;}
-      #mapContainer { width:98vw; height:80vh; }
-      .emailjs-fields { flex-direction: column; }
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Cyclist Power & Speed Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossorigin=""
+    />
+    <style>
+        :root {
+            --primary: #4CAF50; /* A more vibrant green for mobile apps */
+            --secondary: #f0f4f8; /* Lighter background */
+            --accent: #e8f5e9; /* Light green accent */
+            --border: #a5d6a7; /* Green border */
+            --danger: #ef5350; /* Red for errors */
+            font-size: 16px;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--secondary);
+            height: 100%;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: 'Roboto', sans-serif; /* A common mobile font */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        header {
+            background: var(--primary);
+            color: #fff;
+            text-align: center;
+            font-weight: 700; /* Bolder for titles */
+            font-size: 1.8rem;
+            padding: 1rem 0;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15); /* Subtle shadow */
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        main {
+            flex: 1;
+            overflow-y: auto; /* Allow scrolling for content */
+            max-width: 600px;
+            width: 95vw;
+            margin: 1.5rem auto;
+            background: #fff;
+            border-radius: 12px; /* More rounded corners */
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1); /* Deeper shadow */
+            padding: 1.5rem;
+            display: flex; /* Use flex for internal layout */
+            flex-direction: column; /* Stack elements vertically */
+            gap: 1.5rem; /* Spacing between main sections */
+        }
+
+        /* Order of elements in the main section */
+        #live-stats { order: 1; }
+        #summary { order: 2; }
+        #csv-download { order: 3; }
+        #postEmailSection { order: 4; }
+        #settings-summary { order: 5; }
+        form#settings { order: 6; }
+
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.8rem; /* Tighter gap for mobile */
+            align-items: center;
+        }
+        label {
+            flex: 1 0 120px; /* Slightly wider label base */
+            font-size: 1rem;
+            color: #333;
+            font-weight: 500;
+        }
+        input[type="number"], input[type="email"], input[type="text"], input[type="password"], select {
+            flex: 1 0 100px; /* Adjust flexible basis */
+            padding: 0.6rem 0.8rem; /* More padding for touch */
+            border: 1px solid var(--border);
+            border-radius: 8px; /* More rounded inputs */
+            font-size: 1rem;
+            background: var(--accent);
+            appearance: none; /* Remove default select arrow on some browsers */
+        }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%234CAF50' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 24px;
+            padding-right: 30px; /* Make space for the custom arrow */
+        }
+        input[type="checkbox"] {
+            width: 1.4rem; /* Larger checkbox */
+            height: 1.4rem;
+            min-width: 1.4rem; /* Ensure it doesn't shrink */
+            min-height: 1.4rem;
+            accent-color: var(--primary); /* Checkbox color */
+        }
+        button {
+            padding: 0.9rem 1.8rem; /* Larger buttons for touch */
+            font-size: 1.15rem;
+            border: none;
+            border-radius: 10px; /* More rounded buttons */
+            background: var(--primary);
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+            box-shadow: 0 4px 10px rgba(76, 175, 80, 0.3); /* Button shadow */
+        }
+        button:hover {
+            background: #5cb85c;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background: #cccccc;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        #live-stats, #settings-summary, #postEmailSection {
+            background: var(--accent);
+            border-left: 5px solid var(--primary); /* Thicker accent border */
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: #333;
+        }
+        #live-stats strong {
+            color: var(--primary);
+            font-weight: 700;
+        }
+        #live-stats .danger {
+            color: var(--danger);
+            font-weight: 600;
+        }
+        #summary {
+            margin-top: 1rem;
+            font-size: 1.05rem;
+            background: #fff;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+        #summary h3 {
+            color: var(--primary);
+            margin-top: 0;
+            font-size: 1.4rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        #summary table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        #summary th, #summary td {
+            padding: 0.6rem 0;
+            text-align: left;
+            border-bottom: 1px dashed #eee;
+        }
+        #summary th {
+            color: #555;
+            font-weight: 600;
+            width: 40%;
+        }
+        #summary td {
+            color: #222;
+            font-weight: 500;
+        }
+        #summary tr:last-child th, #summary tr:last-child td {
+            border-bottom: none;
+        }
+
+        #csv-download {
+            margin-top: 1rem;
+            font-size: 1rem;
+            text-align: center;
+        }
+        #csv-download a {
+            display: inline-block;
+            background: var(--primary);
+            color: #fff;
+            padding: 0.8rem 1.5rem;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.2s ease;
+        }
+        #csv-download a:hover {
+            background: #5cb85c;
+        }
+        #postEmailSection {
+            margin-top: 1.5rem;
+            padding: 1.2rem;
+            background: var(--accent);
+            border-radius: 10px;
+            border-left: 5px solid var(--primary);
+            display: none;
+        }
+        #postEmailSection label {
+            flex-basis: auto; /* Allow label to shrink/grow as needed */
+            margin-bottom: 0.5rem;
+        }
+        #post_email {
+            margin-right: 0.5rem;
+            margin-bottom: 1rem; /* Space below email input */
+        }
+        #send-post-btn {
+            padding: 0.7rem 1.2rem;
+            font-size: 1rem;
+        }
+        .emailjs-fields {
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            padding-top: 1rem;
+            border-top: 1px dashed var(--border);
+        }
+        .emailjs-fields label {
+            flex: 0 0 100px; /* Adjust label width for smaller screens */
+            font-size: 0.95rem;
+        }
+        .emailjs-fields input {
+            flex: 1 0 150px; /* Allow input to grow */
+            font-size: 0.95rem;
+        }
+        #emailjs-instructions {
+            color: #666;
+            font-size: 0.85rem;
+            margin-bottom: 0.8rem;
+            line-height: 1.4;
+        }
+        #emailjs-instructions a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        #mapModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7); /* Darker overlay */
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #mapContainer {
+            width: 90vw;
+            height: 75vh; /* Slightly smaller height */
+            max-width: 720px;
+            max-height: 580px; /* Increased max height for better view */
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            position: relative;
+        }
+        #mapContainer .closeBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #fff;
+            border: none;
+            font-size: 1.5rem; /* Larger close button */
+            padding: 0.3rem 0.8rem;
+            border-radius: 50%; /* Circular close button */
+            cursor: pointer;
+            z-index: 1001;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            color: #555;
+            line-height: 1; /* Adjust for better centering of X */
+        }
+        #map { width: 100%; height: 100%; }
+
+        @media(max-width:480px){
+            main {
+                margin: 0.8rem auto;
+                padding: 1rem;
+                border-radius: 0; /* Full width on very small screens */
+                box-shadow: none;
+            }
+            .row {
+                flex-direction: column; /* Stack items vertically on small screens */
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            label {
+                flex-basis: auto; /* Allow label to take full width */
+            }
+            input[type="number"], input[type="email"], input[type="text"], input[type="password"], select {
+                width: 100%; /* Full width inputs */
+                flex-basis: auto;
+            }
+            button {
+                width: 100%; /* Full width buttons */
+            }
+            .emailjs-fields {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .emailjs-fields label, .emailjs-fields input {
+                width: 100%;
+                flex-basis: auto;
+            }
+            #post_email {
+                width: calc(100% - 1rem); /* Account for padding */
+                box-sizing: border-box; /* Include padding in width */
+            }
+            #send-post-btn {
+                width: 100%;
+                margin-top: 0.5rem;
+            }
+            #mapContainer {
+                width: 95vw;
+                height: 70vh;
+            }
+        }
+    </style>
 </head>
 <body>
-  <header>Cyclist Power & Speed Tracker</header>
-  <main>
-    <form id="settings" autocomplete="off">
-      <div class="row">
-        <label for="mode">Mode:</label>
-        <select id="mode">
-          <option value="simulate">Simulate</option>
-          <option value="gps">Use GPS</option>
-        </select>
-        <label><input type="checkbox" id="auto_pose" checked> Auto Pose</label>
-      </div>
-      <div class="row">
-        <label>Rider mass (kg):</label>
-        <input type="number" id="rider_mass" value="70" min="30" max="120" step="1">
-        <label>Bike mass (kg):</label>
-        <input type="number" id="bike_mass" value="8" min="5" max="20" step="0.1">
-      </div>
-      <div class="row">
-        <label for="cda">Base CdA (m²):</label>
-        <input type="number" id="cda" value="0.3" min="0.2" max="0.6" step="0.01">
-        <label for="crr">CRR:</label>
-        <input type="number" id="crr" value="0.004" min="0.002" max="0.01" step="0.0001">
-      </div>
-      <div class="row">
-        <label for="email">Email (optional):</label>
-        <input type="email" id="email" placeholder="you@example.com">
-      </div>
-      <button type="button" id="start-btn">Start Session</button>
-      <button type="button" id="stop-btn" disabled>Stop Session</button>
-    </form>
-    <div id="settings-summary"></div>
-    <div id="live-stats"></div>
-    <div id="summary"></div>
-    <div id="csv-download"></div>
-    <div id="postEmailSection">
-      <label for="post_email">Enter email to send CSV:</label>
-      <input type="email" id="post_email" placeholder="you@example.com" style="padding:.4rem; margin-right:.5rem;">
-      <button id="send-post-btn" style="padding:.6rem 1rem; font-size:1rem;">Send CSV</button>
-      <div id="emailjs-instructions">
-        To enable email sending, enter your own <a href="https://dashboard.emailjs.com/" target="_blank">EmailJS</a> credentials below (they remain private and are not shown):
-      </div>
-      <div class="emailjs-fields">
-        <label for="emailjs_user_id">User ID:</label>
-        <input type="password" id="emailjs_user_id" placeholder="EmailJS User ID" autocomplete="off">
-        <label for="emailjs_service_id">Service ID:</label>
-        <input type="password" id="emailjs_service_id" placeholder="Service ID" autocomplete="off">
-        <label for="emailjs_template_id">Template ID:</label>
-        <input type="password" id="emailjs_template_id" placeholder="Template ID" autocomplete="off">
-      </div>
+    <header>Cyclist Power & Speed Tracker</header>
+    <main>
+        <div id="live-stats"></div>
+        <div id="summary"></div>
+        <div id="csv-download"></div>
+        <div id="postEmailSection">
+            <label for="post_email">Enter email to send CSV:</label>
+            <input type="email" id="post_email" placeholder="you@example.com">
+            <button id="send-post-btn">Send CSV</button>
+            <div id="emailjs-instructions">
+                To enable email sending, enter your own <a href="https://dashboard.emailjs.com/" target="_blank">EmailJS</a> credentials below (they remain private and are not shown):
+            </div>
+            <div class="emailjs-fields">
+                <label for="emailjs_user_id">User ID:</label>
+                <input type="password" id="emailjs_user_id" placeholder="EmailJS User ID" autocomplete="off">
+                <label for="emailjs_service_id">Service ID:</label>
+                <input type="password" id="emailjs_service_id" placeholder="Service ID" autocomplete="off">
+                <label for="emailjs_template_id">Template ID:</label>
+                <input type="password" id="emailjs_template_id" placeholder="Template ID" autocomplete="off">
+            </div>
+        </div>
+        <div id="settings-summary"></div>
+        <form id="settings" autocomplete="off">
+            <div class="row">
+                <label for="mode">Mode:</label>
+                <select id="mode">
+                    <option value="simulate">Simulate</option>
+                    <option value="gps">Use GPS</option>
+                </select>
+                <label><input type="checkbox" id="auto_pose" checked> Auto Pose</label>
+            </div>
+            <div class="row">
+                <label>Rider mass (kg):</label>
+                <input type="number" id="rider_mass" value="70" min="30" max="120" step="1">
+            </div>
+            <div class="row">
+                <label>Bike mass (kg):</label>
+                <input type="number" id="bike_mass" value="8" min="5" max="20" step="0.1">
+            </div>
+            <div class="row">
+                <label for="cda">Base CdA (m²):</label>
+                <input type="number" id="cda" value="0.3" min="0.2" max="0.6" step="0.01">
+            </div>
+            <div class="row">
+                <label for="crr">CRR:</label>
+                <input type="number" id="crr" value="0.004" min="0.002" max="0.01" step="0.0001">
+            </div>
+            <div class="row">
+                <label for="email">Email (optional):</label>
+                <input type="email" id="email" placeholder="you@example.com">
+            </div>
+            <button type="button" id="start-btn">Start Session</button>
+            <button type="button" id="stop-btn" disabled>Stop Session</button>
+        </form>
+    </main>
+    <div id="mapModal">
+        <div id="mapContainer">
+            <button class="closeBtn">&times;</button>
+            <div id="map"></div>
+        </div>
     </div>
-  </main>
-  <!-- Map Modal -->
-  <div id="mapModal">
-    <div id="mapContainer">
-      <button class="closeBtn">&times;</button>
-      <div id="map"></div>
-    </div>
-  </div>
-  <!-- Leaflet & EmailJS SDKs -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-  <script>
-    // --- EmailJS credential state (editable by user) ---
-    let EMAILJS_USER_ID = '', EMAILJS_SERVICE = '', EMAILJS_TEMPLATE = '';
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script>
+        // --- EmailJS credential state (editable by user) ---
+        let EMAILJS_USER_ID = '', EMAILJS_SERVICE = '', EMAILJS_TEMPLATE = '';
 
-    // --- Constants & Globals ---
-    const g = 9.80665, rho = 1.225, efficiency = 0.23;
-    let dataPoints = [], intervalHandles = [], running = false;
-    let currentWind = {speed:0,direction:0}, currentCdA = 0, positions=[],
-        rideStartTime, rideDateStr, csvContent, fname;
+        // --- Constants & Globals ---
+        const g = 9.80665, rho = 1.225, efficiency = 0.23;
+        let dataPoints = [], intervalHandles = [], running = false;
+        let currentWind = {speed:0,direction:0}, currentCdA = 0, positions=[],
+            rideStartTime, rideDateStr, csvContent, fname;
 
-    // --- Utils ---
-    function pad(n){return n<10?'0'+n:n;}
-    function makeFilename() {
-      const d = rideStartTime;
-      rideDateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
-      const t = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-      return `ride_${rideDateStr}_${t}.csv`;
-    }
-    function toCSV(rows) {
-      const header = [
-        'timestamp','latitude','longitude','altitude',
-        'power','speed','cda','gradient','wind_speed','wind_direction'
-      ];
-      const csv = [header.join(',')];
-      for (const r of rows) {
-        csv.push([
-          r.timestamp, r.lat, r.lon, r.alt,
-          r.power, r.speed, r.cda, r.gradient,
-          r.wind.speed, r.wind.direction
-        ].join(','));
-      }
-      return csv.join('\n');
-    }
-    function hav(lat1,lon1,lat2,lon2){
-      const R=6371000, toRad=x=>x*Math.PI/180;
-      const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
-      const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
-      return 2*R*Math.asin(Math.sqrt(a));
-    }
-    function bearing(lat1,lon1,lat2,lon2){
-      const toRad=x=>x*Math.PI/180, toDeg=x=>x*180/Math.PI;
-      const dLon=toRad(lon2-lon1),
-        y=Math.sin(dLon)*Math.cos(toRad(lat2)),
-        x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))
-          -Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
-      return (toDeg(Math.atan2(y,x))+360)%360;
-    }
-    async function getWind(lat,lon){
-      try{
-        const js=await(fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`
-        ).then(r=>r.json()));
-        return js.current_weather
-          ? {speed:js.current_weather.windspeed, direction:js.current_weather.winddirection}
-          : {speed:0,direction:0};
-      }catch{return {speed:0,direction:0};}
-    }
-    async function getElevation(lat,lon){
-      try{
-        const js=await(fetch(
-          `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`
-        ).then(r=>r.json()));
-        return js.elevation||0;
-      }catch{return 0;}
-    }
-    function simulatePos(bLat,bLon,e,n){
-      const dLat=n/111320, dLon=e/(40075000*Math.cos(bLat*Math.PI/180)/360);
-      return [bLat+dLat,bLon+dLon];
-    }
-    function autoPoseCdA(base,grad){
-      if(grad>0.03) return base*1.10;
-      if(grad<-0.03) return base*0.90;
-      return base;
-    }
-    function calcPower(p1,p2,wind,user,useAuto){
-      const dist=hav(p1.lat,p1.lon,p2.lat,p2.lon),
-        dt=(p2.timestamp-p1.timestamp)/1000;
-      if(dt<=0) return {power:0,speed:0,cda:user.cda,gradient:0};
-      const speed=dist/dt,
-        dAlt=p2.alt-p1.alt,
-        grad=dist<1?0:dAlt/dist,
-        theta=Math.atan(grad),
-        course=bearing(p1.lat,p1.lon,p2.lat,p2.lon),
-        wind_rel=wind.speed*Math.cos((wind.direction-course)*Math.PI/180),
-        app_sp=speed+wind_rel;
-      let cda=user.cda;
-      if(useAuto) cda=autoPoseCdA(user.cda,grad);
-      const mass=user.rider_mass+user.bike_mass,
-        Fg=mass*g*Math.sin(theta),
-        Fr=mass*g*user.crr*Math.cos(theta),
-        Fa=0.5*rho*cda*app_sp**2,
-        P=(Fg+Fr+Fa)*speed;
-      return {power:Math.max(0,P),speed,cda,gradient:grad};
-    }
-
-    // --- Session ---
-    function startSession(user,useAuto){
-      running=true; dataPoints=[]; positions=[];
-      rideStartTime=new Date();
-      document.getElementById('start-btn').disabled=true;
-      document.getElementById('stop-btn').disabled=false;
-      document.getElementById('live-stats').innerHTML=`<span class="danger">Starting…</span>`;
-      document.getElementById('postEmailSection').style.display = 'none';
-      let baseLat=51.05011, baseLon=-114.08529,
-          metersEast=0, metersNorth=0, watchId=null;
-
-      intervalHandles.push(setInterval(async()=>{
-        const now=Date.now();
-        let lat,lon,alt;
-        if(user.mode==='simulate'){
-          metersEast+=4+(Math.random()-0.5)*0.8;
-          metersNorth+=(Math.random()-0.5)*0.3;
-          [lat,lon]=simulatePos(baseLat,baseLon,metersEast,metersNorth);
-          alt=1050+Math.sin(metersEast/200)*8+Math.random();
-        } else if(positions.length){
-          const pos=positions[positions.length-1];
-          lat=pos.coords.latitude; lon=pos.coords.longitude;
-          alt=await getElevation(lat,lon);
-        } else {
-          document.getElementById('live-stats').innerHTML=
-            `<span class="danger">Waiting for GPS…</span>`;
-          return;
+        // --- Utils ---
+        function pad(n){return n<10?'0'+n:n;}
+        function makeFilename() {
+            const d = rideStartTime;
+            rideDateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+            const t = `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+            return `ride_${rideDateStr}_${t}.csv`;
         }
-        currentWind=await getWind(lat,lon);
-        const prev=dataPoints.length?dataPoints.at(-1):{lat,lon,alt,timestamp:now-5000};
-        const rec=calcPower(prev,{lat,lon,alt,timestamp:now},currentWind,user,useAuto);
-        currentCdA=rec.cda;
-        dataPoints.push({...rec,timestamp:now,lat,lon,alt,wind:currentWind});
-        updateStats();
-      },5000));
-
-      if(user.mode==='gps'&&navigator.geolocation){
-        watchId=navigator.geolocation.watchPosition(
-          p=>positions.push(p),
-          e=>document.getElementById('live-stats').innerHTML=
-            `<span class="danger">GPS error: ${e.message}</span>`,
-          {enableHighAccuracy:true,maximumAge:3000,timeout:8000}
-        );
-      }
-      document.getElementById('stop-btn').onclick=()=>{
-        running=false;
-        if(watchId) navigator.geolocation.clearWatch(watchId);
-        intervalHandles.forEach(h=>clearInterval(h)); intervalHandles=[];
-        document.getElementById('start-btn').disabled=false;
-        document.getElementById('stop-btn').disabled=true;
-        endSession(user);
-      };
-    }
-
-    function updateStats(){
-      if(dataPoints.length<1) return;
-      const last=dataPoints.at(-1),
-        P=last.power.toFixed(1),
-        V=(last.speed*3.6).toFixed(1),
-        G=(last.gradient*100).toFixed(1),
-        WS=last.wind.speed.toFixed(1),
-        WD=last.wind.direction.toFixed(0),
-        C=currentCdA.toFixed(2);
-      document.getElementById('live-stats').innerHTML=`
-        <strong>Last 5s:</strong><br>
-        Power: ${P} W<br>
-        Speed: ${V} km/h<br>
-        Gradient: ${G}%<br>
-        Wind: ${WS} m/s @${WD}°<br>
-        CdA: <strong>${C} m²</strong>
-      `;
-    }
-
-    async function endSession(user){
-      const clean=dataPoints.filter(r=>r.power>0);
-      if(!clean.length) return;
-      const avgP=clean.reduce((s,r)=>s+r.power,0)/clean.length,
-            avgV=clean.reduce((s,r)=>s+r.speed,0)/clean.length,
-            joules=clean.reduce((s,r,i,arr)=>i? s+r.power*((r.timestamp-arr[i-1].timestamp)/1000):s,0),
-            cals=(joules/efficiency/4184).toFixed(1),
-            elev=clean.reduce((s,r,i,a)=>i && (d=a[i].alt-a[i-1].alt)>0.3? s+d:s,0).toFixed(1);
-      document.getElementById('summary').innerHTML=`
-        <h3>Ride Summary</h3>
-        <table>
-          <tr><th>Avg Power</th><td>${avgP.toFixed(1)} W</td></tr>
-          <tr><th>Avg Speed</th><td>${(avgV*3.6).toFixed(1)} km/h</td></tr>
-          <tr><th>Calories</th><td>${cals} kcal</td></tr>
-          <tr><th>Elev Gain</th><td>${elev} m</td></tr>
-        </table>`;
-      csvContent = toCSV(dataPoints);
-      fname = makeFilename();
-      const blob=new Blob([csvContent],{type:'text/csv'});
-      const url=URL.createObjectURL(blob);
-      document.getElementById('csv-download').innerHTML=`
-        <a href="${url}" download="${fname}">Download ${fname}</a>
-      `;
-
-      // Get (hidden) credentials if present in UI
-      EMAILJS_USER_ID = document.getElementById('emailjs_user_id')?.value || EMAILJS_USER_ID;
-      EMAILJS_SERVICE = document.getElementById('emailjs_service_id')?.value || EMAILJS_SERVICE;
-      EMAILJS_TEMPLATE = document.getElementById('emailjs_template_id')?.value || EMAILJS_TEMPLATE;
-
-      const preEmail = document.getElementById('email').value.trim();
-      if (preEmail && EMAILJS_USER_ID && EMAILJS_SERVICE && EMAILJS_TEMPLATE) {
-        try {
-          emailjs.init(EMAILJS_USER_ID);
-          await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-            to_email: preEmail,
-            ride_filename: fname,
-            ride_data: csvContent
-          });
-          alert('CSV emailed to ' + preEmail);
-        } catch (e) {
-          alert('Could not send email: ' + e.message);
+        function toCSV(rows) {
+            const header = [
+                'timestamp','latitude','longitude','altitude',
+                'power','speed','cda','gradient','wind_speed','wind_direction'
+            ];
+            const csv = [header.join(',')];
+            for (const r of rows) {
+                csv.push([
+                    r.timestamp, r.lat, r.lon, r.alt,
+                    r.power, r.speed, r.cda, r.gradient,
+                    r.wind.speed, r.wind.direction
+                ].join(','));
+            }
+            return csv.join('\n');
         }
-      } else {
-        document.getElementById('postEmailSection').style.display = 'block';
-      }
-      showMap();
-    }
+        function hav(lat1,lon1,lat2,lon2){
+            const R=6371000, toRad=x=>x*Math.PI/180;
+            const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
+            const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+            return 2*R*Math.asin(Math.sqrt(a));
+        }
+        function bearing(lat1,lon1,lat2,lon2){
+            const toRad=x=>x*Math.PI/180, toDeg=x=>x*180/Math.PI;
+            const dLon=toRad(lon2-lon1),
+                y=Math.sin(dLon)*Math.cos(toRad(lat2)),
+                x=Math.cos(toRad(lat1))*Math.sin(toRad(lat2))
+                    -Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(dLon);
+            return (toDeg(Math.atan2(y,x))+360)%360;
+        }
+        async function getWind(lat,lon){
+            try{
+                const js=await(fetch(
+                    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true&windspeed_unit=ms`
+                ).then(r=>r.json()));
+                return js.current_weather
+                    ? {speed:js.current_weather.windspeed, direction:js.current_weather.winddirection}
+                    : {speed:0,direction:0};
+            }catch{return {speed:0,direction:0};}
+        }
+        async function getElevation(lat,lon){
+            try{
+                const js=await(fetch(
+                    `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lon}`
+                ).then(r=>r.json()));
+                return js.elevation||0;
+            }catch{return 0;}
+        }
+        function simulatePos(bLat,bLon,e,n){
+            const dLat=n/111320, dLon=e/(40075000*Math.cos(bLat*Math.PI/180)/360);
+            return [bLat+dLat,bLon+dLon];
+        }
+        function autoPoseCdA(base,grad){
+            if(grad>0.03) return base*1.10;
+            if(grad<-0.03) return base*0.90;
+            return base;
+        }
+        function calcPower(p1,p2,wind,user,useAuto){
+            const dist=hav(p1.lat,p1.lon,p2.lat,p2.lon),
+                dt=(p2.timestamp-p1.timestamp)/1000;
+            if(dt<=0) return {power:0,speed:0,cda:user.cda,gradient:0};
+            const speed=dist/dt,
+                dAlt=p2.alt-p1.alt,
+                grad=dist<1?0:dAlt/dist,
+                theta=Math.atan(grad),
+                course=bearing(p1.lat,p1.lon,p2.lat,p2.lon),
+                wind_rel=wind.speed*Math.cos((wind.direction-course)*Math.PI/180),
+                app_sp=speed+wind_rel;
+            let cda=user.cda;
+            if(useAuto) cda=autoPoseCdA(user.cda,grad);
+            const mass=user.rider_mass+user.bike_mass,
+                Fg=mass*g*Math.sin(theta),
+                Fr=mass*g*user.crr*Math.cos(theta),
+                Fa=0.5*rho*cda*app_sp**2,
+                P=(Fg+Fr+Fa)*speed;
+            return {power:Math.max(0,P),speed,cda,gradient:grad};
+        }
 
-    document.getElementById('send-post-btn').onclick = async () => {
-      const addr = document.getElementById('post_email').value.trim();
-      // Read hidden credential fields
-      EMAILJS_USER_ID    = document.getElementById('emailjs_user_id').value.trim();
-      EMAILJS_SERVICE    = document.getElementById('emailjs_service_id').value.trim();
-      EMAILJS_TEMPLATE   = document.getElementById('emailjs_template_id').value.trim();
+        // --- Session ---
+        function startSession(user,useAuto){
+            running=true; dataPoints=[]; positions=[];
+            rideStartTime=new Date();
+            document.getElementById('start-btn').disabled=true;
+            document.getElementById('stop-btn').disabled=false;
+            document.getElementById('live-stats').innerHTML=`<span class="danger">Starting…</span>`;
+            document.getElementById('postEmailSection').style.display = 'none';
+            let baseLat=51.05011, baseLon=-114.08529,
+                metersEast=0, metersNorth=0, watchId=null;
 
-      if (!addr) return alert('Please enter a valid email.');
-      if (!EMAILJS_USER_ID || !EMAILJS_SERVICE || !EMAILJS_TEMPLATE) {
-        return alert('EmailJS credentials not set. Please fill in all fields. See emailjs.com for details.');
-      }
-      try {
-        emailjs.init(EMAILJS_USER_ID);
-        await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
-          to_email: addr,
-          ride_filename: fname,
-          ride_data: csvContent
-        });
-        alert('CSV emailed to ' + addr);
-        document.getElementById('postEmailSection').style.display = 'none';
-      } catch (e) {
-        alert('Could not send email: ' + e.message);
-      }
-    };
+            intervalHandles.push(setInterval(async()=>{
+                const now=Date.now();
+                let lat,lon,alt;
+                if(user.mode==='simulate'){
+                    metersEast+=4+(Math.random()-0.5)*0.8;
+                    metersNorth+=(Math.random()-0.5)*0.3;
+                    [lat,lon]=simulatePos(baseLat,baseLon,metersEast,metersNorth);
+                    alt=1050+Math.sin(metersEast/200)*8+Math.random();
+                } else if(positions.length){
+                    const pos=positions[positions.length-1];
+                    lat=pos.coords.latitude; lon=pos.coords.longitude;
+                    alt=await getElevation(lat,lon);
+                } else {
+                    document.getElementById('live-stats').innerHTML=
+                        `<span class="danger">Waiting for GPS…</span>`;
+                    return;
+                }
+                currentWind=await getWind(lat,lon);
+                const prev=dataPoints.length?dataPoints.at(-1):{lat,lon,alt,timestamp:now-5000};
+                const rec=calcPower(prev,{lat,lon,alt,timestamp:now},currentWind,user,useAuto);
+                currentCdA=rec.cda;
+                dataPoints.push({...rec,timestamp:now,lat,lon,alt,wind:currentWind});
+                updateStats();
+            },5000));
 
-    function showMap(){
-      const modal=document.getElementById('mapModal');
-      modal.style.display='flex';
-      setTimeout(()=>{ 
-        const map=L.map('map').setView([dataPoints[0].lat,dataPoints[0].lon],13);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-          maxZoom:19, attribution:'© OpenStreetMap'
-        }).addTo(map);
-        const latlngs=dataPoints.map(r=>[r.lat,r.lon]);
-        const poly=L.polyline(latlngs,{color:'blue'}).addTo(map);
-        map.fitBounds(poly.getBounds());
-        poly.on('click',e=>{
-          let minDist=1e9, idx=0;
-          dataPoints.forEach((r,i)=>{
-            const d=hav(r.lat,r.lon,e.latlng.lat,e.latlng.lng);
-            if(d<minDist){minDist=d;idx=i;}
-          });
-          const r=dataPoints[idx];
-          const d=new Date(r.timestamp);
-          const info=`
-            <strong>${d.toLocaleString()}</strong><br>
-            Power: ${r.power.toFixed(1)} W<br>
-            Speed: ${(r.speed*3.6).toFixed(1)} km/h<br>
-            Gradient: ${(r.gradient*100).toFixed(1)}%<br>
-            Wind: ${r.wind.speed.toFixed(1)} m/s @${r.wind.direction.toFixed(0)}°
-            <br>CdA: ${r.cda.toFixed(2)} m²
-            <br>Lat: ${r.lat.toFixed(5)}<br>Lon: ${r.lon.toFixed(5)}<br>Alt: ${r.alt.toFixed(1)} m
-          `;
-          L.popup().setLatLng([r.lat,r.lon]).setContent(info).openOn(map);
-        });
-        document.querySelector('#mapContainer .closeBtn').onclick=()=>{
-          modal.style.display='none';
-          map.remove();
+            if(user.mode==='gps'&&navigator.geolocation){
+                watchId=navigator.geolocation.watchPosition(
+                    p=>positions.push(p),
+                    e=>document.getElementById('live-stats').innerHTML=
+                        `<span class="danger">GPS error: ${e.message}</span>`,
+                    {enableHighAccuracy:true,maximumAge:3000,timeout:8000}
+                );
+            }
+            document.getElementById('stop-btn').onclick=()=>{
+                running=false;
+                if(watchId) navigator.geolocation.clearWatch(watchId);
+                intervalHandles.forEach(h=>clearInterval(h)); intervalHandles=[];
+                document.getElementById('start-btn').disabled=false;
+                document.getElementById('stop-btn').disabled=true;
+                endSession(user);
+            };
+        }
+
+        function updateStats(){
+            if(dataPoints.length<1) return;
+            const last=dataPoints.at(-1),
+                P=last.power.toFixed(1),
+                V=(last.speed*3.6).toFixed(1),
+                G=(last.gradient*100).toFixed(1),
+                WS=last.wind.speed.toFixed(1),
+                WD=last.wind.direction.toFixed(0),
+                C=currentCdA.toFixed(2);
+            document.getElementById('live-stats').innerHTML=`
+                <strong>Last 5s:</strong><br>
+                Power: ${P} W<br>
+                Speed: ${V} km/h<br>
+                Gradient: ${G}%<br>
+                Wind: ${WS} m/s @${WD}°<br>
+                CdA: <strong>${C} m²</strong>
+            `;
+        }
+
+        async function endSession(user){
+            const clean=dataPoints.filter(r=>r.power>0);
+            if(!clean.length) return;
+            const avgP=clean.reduce((s,r)=>s+r.power,0)/clean.length,
+                avgV=clean.reduce((s,r)=>s+r.speed,0)/clean.length,
+                joules=clean.reduce((s,r,i,arr)=>i? s+r.power*((r.timestamp-arr[i-1].timestamp)/1000):s,0),
+                cals=(joules/efficiency/4184).toFixed(1),
+                elev=clean.reduce((s,r,i,a)=>i && (d=a[i].alt-a[i-1].alt)>0.3? s+d:s,0).toFixed(1);
+            document.getElementById('summary').innerHTML=`
+                <h3>Ride Summary</h3>
+                <table>
+                    <tr><th>Avg Power</th><td>${avgP.toFixed(1)} W</td></tr>
+                    <tr><th>Avg Speed</th><td>${(avgV*3.6).toFixed(1)} km/h</td></tr>
+                    <tr><th>Calories</th><td>${cals} kcal</td></tr>
+                    <tr><th>Elev Gain</th><td>${elev} m</td></tr>
+                </table>`;
+            csvContent = toCSV(dataPoints);
+            fname = makeFilename();
+            const blob=new Blob([csvContent],{type:'text/csv'});
+            const url=URL.createObjectURL(blob);
+            document.getElementById('csv-download').innerHTML=`
+                <a href="${url}" download="${fname}">Download ${fname}</a>
+            `;
+
+            // Get (hidden) credentials if present in UI
+            EMAILJS_USER_ID = document.getElementById('emailjs_user_id')?.value || EMAILJS_USER_ID;
+            EMAILJS_SERVICE = document.getElementById('emailjs_service_id')?.value || EMAILJS_SERVICE;
+            EMAILJS_TEMPLATE = document.getElementById('emailjs_template_id')?.value || EMAILJS_TEMPLATE;
+
+            const preEmail = document.getElementById('email').value.trim();
+            if (preEmail && EMAILJS_USER_ID && EMAILJS_SERVICE && EMAILJS_TEMPLATE) {
+                try {
+                    emailjs.init(EMAILJS_USER_ID);
+                    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+                        to_email: preEmail,
+                        ride_filename: fname,
+                        ride_data: csvContent
+                    });
+                    alert('CSV emailed to ' + preEmail);
+                } catch (e) {
+                    alert('Could not send email: ' + e.message);
+                }
+            } else {
+                document.getElementById('postEmailSection').style.display = 'block';
+            }
+            showMap();
+        }
+
+        document.getElementById('send-post-btn').onclick = async () => {
+            const addr = document.getElementById('post_email').value.trim();
+            // Read hidden credential fields
+            EMAILJS_USER_ID    = document.getElementById('emailjs_user_id').value.trim();
+            EMAILJS_SERVICE    = document.getElementById('emailjs_service_id').value.trim();
+            EMAILJS_TEMPLATE   = document.getElementById('emailjs_template_id').value.trim();
+
+            if (!addr) return alert('Please enter a valid email.');
+            if (!EMAILJS_USER_ID || !EMAILJS_SERVICE || !EMAILJS_TEMPLATE) {
+                return alert('EmailJS credentials not set. Please fill in all fields. See emailjs.com for details.');
+            }
+            try {
+                emailjs.init(EMAILJS_USER_ID);
+                await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+                    to_email: addr,
+                    ride_filename: fname,
+                    ride_data: csvContent
+                });
+                alert('CSV emailed to ' + addr);
+                document.getElementById('postEmailSection').style.display = 'none';
+            } catch (e) {
+                alert('Could not send email: ' + e.message);
+            }
         };
-      }, 100);
-    }
 
-    function updateSettingsSummary(){
-      const base=parseFloat(document.getElementById('cda').value),
-            auto=document.getElementById('auto_pose').checked;
-      document.getElementById('settings-summary').textContent=
-        auto
-          ? `Auto Pose ON (±10% of base CdA: base ${base} m² ⇒ climbs ${(base*1.1).toFixed(2)} / flats ${base.toFixed(2)} / desc ${(base*0.9).toFixed(2)})`
-          : `Auto Pose OFF (fixed CdA ${base.toFixed(2)} m²)`;
-    }
-    document.getElementById('auto_pose').onchange=updateSettingsSummary;
-    document.getElementById('cda').oninput=updateSettingsSummary;
-    updateSettingsSummary();
-    document.getElementById('start-btn').onclick=()=>{
-      if(running) return;
-      const user={
-        mode: document.getElementById('mode').value,
-        rider_mass: parseFloat(document.getElementById('rider_mass').value),
-        bike_mass: parseFloat(document.getElementById('bike_mass').value),
-        cda: parseFloat(document.getElementById('cda').value),
-        crr: parseFloat(document.getElementById('crr').value)
-      };
-      startSession(user, document.getElementById('auto_pose').checked);
-    };
-    document.getElementById('stop-btn').onclick=()=>{};
-  </script>
+        function showMap(){
+            const modal=document.getElementById('mapModal');
+            modal.style.display='flex';
+            setTimeout(()=>{
+                const map=L.map('map').setView([dataPoints[0].lat,dataPoints[0].lon],13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+                    maxZoom:19, attribution:'© OpenStreetMap'
+                }).addTo(map);
+                const latlngs=dataPoints.map(r=>[r.lat,r.lon]);
+                const poly=L.polyline(latlngs,{color:'blue'}).addTo(map);
+                map.fitBounds(poly.getBounds());
+                poly.on('click',e=>{
+                    let minDist=1e9, idx=0;
+                    dataPoints.forEach((r,i)=>{
+                        const d=hav(r.lat,r.lon,e.latlng.lat,e.latlng.lng);
+                        if(d<minDist){minDist=d;idx=i;}
+                    });
+                    const r=dataPoints[idx];
+                    const d=new Date(r.timestamp);
+                    const info=`
+                        <strong>${d.toLocaleString()}</strong><br>
+                        Power: ${r.power.toFixed(1)} W<br>
+                        Speed: ${(r.speed*3.6).toFixed(1)} km/h<br>
+                        Gradient: ${(r.gradient*100).toFixed(1)}%<br>
+                        Wind: ${r.wind.speed.toFixed(1)} m/s @${r.wind.direction.toFixed(0)}°
+                        <br>CdA: ${r.cda.toFixed(2)} m²
+                        <br>Lat: ${r.lat.toFixed(5)}<br>Lon: ${r.lon.toFixed(5)}<br>Alt: ${r.alt.toFixed(1)} m
+                    `;
+                    L.popup().setLatLng([r.lat,r.lon]).setContent(info).openOn(map);
+                });
+                document.querySelector('#mapContainer .closeBtn').onclick=()=>{
+                    modal.style.display='none';
+                    map.remove();
+                };
+            }, 100);
+        }
+
+        function updateSettingsSummary(){
+            const base=parseFloat(document.getElementById('cda').value),
+                auto=document.getElementById('auto_pose').checked;
+            document.getElementById('settings-summary').textContent=
+                auto
+                    ? `Auto Pose ON (±10% of base CdA: base ${base} m² ⇒ climbs ${(base*1.1).toFixed(2)} / flats ${base.toFixed(2)} / desc ${(base*0.9).toFixed(2)})`
+                    : `Auto Pose OFF (fixed CdA ${base.toFixed(2)} m²)`;
+        }
+        document.getElementById('auto_pose').onchange=updateSettingsSummary;
+        document.getElementById('cda').oninput=updateSettingsSummary;
+        updateSettingsSummary();
+        document.getElementById('start-btn').onclick=()=>{
+            if(running) return;
+            const user={
+                mode: document.getElementById('mode').value,
+                rider_mass: parseFloat(document.getElementById('rider_mass').value),
+                bike_mass: parseFloat(document.getElementById('bike_mass').value),
+                cda: parseFloat(document.getElementById('cda').value),
+                crr: parseFloat(document.getElementById('crr').value)
+            };
+            startSession(user, document.getElementById('auto_pose').checked);
+        };
+        // Removed the empty onclick handler for stop-btn here as it's defined within startSession
+    </script>
 </body>
 </html>
